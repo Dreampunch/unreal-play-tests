@@ -1,0 +1,318 @@
+<!doctype html>
+<!-- A play-test run's report (unreal-play-tests). Each run's folder (Saved/TestRecordings/<run>/) gets a copy of this page
+     when its first test starts; every test that ends adds a line to results.js beside it (LW.push({...}); see framework.md),
+     and when recorded its video <case>.mp4 and a still <case>.jpg. Open it while the run goes (it picks up new results)
+     or after. Dark only; every fact in its own box with an icon; buttons raised with a gradient. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play tests</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0f11; --paper: #17191c; --side: #131518; --chip: #212429; --ink: #e8e8e5; --soft: #a3a7ad; --faint: #62666d; --rule: #2c3035;
+    --pass: #3ccf6e; --fail: #ff5245; --fail-bg: #2e1513; --fail-rule: #5c2520;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, "Segoe UI", sans-serif; }
+  svg.i { width: 15px; height: 15px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* the page: a side nav, and the report beside it */
+  .layout { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+  nav { position: sticky; top: 0; height: 100vh; overflow: auto; background: var(--side); border-right: 1px solid var(--rule); padding: 18px 12px; display: grid; align-content: start; gap: 6px; }
+  .navtitle { display: flex; align-items: center; gap: 8px; padding: 4px 8px 14px; font-weight: 700; font-size: 15px; }
+  .navlink { display: grid; grid-template-columns: 15px 1fr auto; align-items: center; gap: 9px; padding: 8px 10px; color: var(--ink); text-decoration: none; border: 1px solid transparent; font-size: 14px; }
+  .navlink svg { color: var(--soft); }
+  .navlink:hover { background: var(--chip); border-color: var(--rule); }
+  .navlink.on { background: var(--chip); border-color: #4a5059; }
+  .navlink.on svg { color: var(--ink); }
+  .count { display: inline-flex; align-items: center; gap: 6px; padding: 1px 7px; background: var(--bg); border: 1px solid var(--rule); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .navsep { height: 1px; background: var(--rule); margin: 10px 4px; }
+  main { padding: 28px 32px 80px; max-width: 1400px; width: 100%; }
+  section { scroll-margin-top: 16px; }
+  section + section { margin-top: 36px; }
+
+  /* a fact: an icon and a value in a box of its own */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; background: var(--chip); border: 1px solid var(--rule); font-size: 13px; color: var(--ink); white-space: nowrap; }
+  .chip svg { color: var(--soft); }
+  .chip.good svg { color: var(--pass); }
+  .chip.bad { border-color: var(--fail-rule); background: var(--fail-bg); }
+  .chip.bad svg { color: var(--fail); }
+
+  /* buttons: raised, with a gradient */
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; cursor: pointer; font: 600 13px system-ui, "Segoe UI", sans-serif;
+    color: var(--ink); background: linear-gradient(180deg, #3a3f47 0%, #262a30 100%); border: 1px solid #4a5059; border-bottom-color: #1a1d21;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 2px rgba(0,0,0,0.5); }
+  .btn svg { color: var(--ink); }
+  .btn:hover { background: linear-gradient(180deg, #474d57 0%, #2e3239 100%); border-color: #5b626c; }
+  .btn:active { background: linear-gradient(180deg, #24272c 0%, #30353c 100%); box-shadow: inset 0 1px 3px rgba(0,0,0,0.6); }
+  .btn:focus-visible { outline: 2px solid var(--soft); outline-offset: 2px; }
+  .btn[aria-pressed="true"] { background: linear-gradient(180deg, #7a2b24 0%, #4a1713 100%); border-color: #a23a30; border-bottom-color: #2a0d0a; }
+  nav .btn { justify-content: center; margin-top: 4px; }
+
+  .sechead { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+  .sechead h2 { margin: 0; font-size: 22px; font-weight: 700; }
+
+  /* the summary */
+  .tally { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 6px 0 14px; }
+  .tally .bad { color: var(--fail); }
+  .tally .good { color: var(--pass); }
+  .strip { display: flex; gap: 3px; margin: 14px 0 22px; }
+  .strip a { flex: 1; height: 10px; background: var(--pass); }
+  .strip a.fail { background: var(--fail); }
+  table.sum { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); font-size: 14px; }
+  table.sum + table.sum { margin-top: 18px; }
+  table.sum th { text-align: left; font-size: 12px; font-weight: 600; color: var(--soft); padding: 9px 12px; border-bottom: 1px solid var(--rule); background: var(--side); }
+  table.sum td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  table.sum tr:last-child td { border-bottom: 0; }
+  table.sum td.n { font-variant-numeric: tabular-nums; }
+  table.sum td.bad { color: var(--fail); font-weight: 600; }
+  table.sum a { color: var(--ink); font-family: var(--mono); font-size: 13px; }
+  table.sum .cat { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  table.sum .cat svg { color: var(--soft); }
+  .boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .box { border: 1px solid var(--rule); background: var(--paper); }
+  .box > .head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--soft); border-bottom: 1px solid var(--rule); }
+  .box > .head .sq { margin-right: 2px; }
+  .box > .body { padding: 12px; }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 10px; padding: 7px 12px; font-size: 14px; }
+  .rows li + li { border-top: 1px solid var(--rule); }
+  .rows a { color: var(--ink); text-decoration: none; font-family: var(--mono); font-size: 13px; }
+  .rows a:hover { text-decoration: underline; }
+  .rows .msg { grid-column: 2 / -1; color: var(--soft); font-size: 13px; }
+
+  /* the tests */
+  .tests { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .test { background: var(--paper); border: 1px solid var(--rule); cursor: pointer; text-align: left; padding: 0; font: inherit; color: inherit; display: flex; flex-direction: column; }
+  .test:hover, .test:focus-visible { border-color: var(--soft); outline: none; }
+  .thumb { aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }   /* <case>.jpg: the wide view at its end */
+  .nothumb { aspect-ratio: 16 / 9; background: #1b1d21; color: var(--faint); display: grid; place-items: center; font-size: 13px; }
+  .test .body { padding: 10px 12px 12px; display: grid; gap: 8px; }
+  .name { font: 600 15px var(--mono); word-break: break-all; display: flex; align-items: center; gap: 9px; }
+  .sq { display: inline-block; vertical-align: middle; flex: none; width: 12px; height: 12px; background: var(--pass); }   /* the result: a green or red square */
+  .fail .sq, .sq.fail { background: var(--fail); }
+  .why { display: flex; gap: 8px; padding: 8px 10px; background: var(--fail-bg); border: 1px solid var(--fail-rule); font-size: 13px; }
+  .why svg { color: var(--fail); margin-top: 2px; }
+  .why span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* a test opened: the whole window, the video as large as fits, its steps in a column beside it */
+  dialog { border: 0; padding: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; background: #000; color: var(--ink); }
+  dialog::backdrop { background: #000; }
+  .detail { display: grid; grid-template-columns: 1fr 340px; height: 100%; }
+  .detail video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+  .detail .nothumb { height: 100%; aspect-ratio: auto; }
+  .side { padding: 16px; overflow: auto; height: 100vh; background: var(--paper); border-left: 1px solid var(--rule); display: grid; align-content: start; gap: 14px; }
+  .sidehead { display: flex; align-items: flex-start; gap: 12px; }
+  .sidehead h2 { flex: 1; min-width: 0; margin: 0; padding-top: 4px; font: 700 17px/1.3 var(--mono); display: flex; align-items: baseline; gap: 9px; }
+  .sidehead h2 .sq { flex: none; }
+  .sidehead h2 span:last-child { min-width: 0; overflow-wrap: anywhere; }
+  .side .box { background: var(--bg); }
+  .side .box > .head { padding: 7px 10px; font-size: 12px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: grid; grid-template-columns: 22px 1fr auto; gap: 9px; align-items: center; padding: 6px 10px; font-size: 14px; }
+  .steps li + li { border-top: 1px solid var(--rule); }
+  .mark { width: 22px; height: 22px; display: grid; place-items: center; background: var(--chip); border: 1px solid var(--rule); }
+  .mark svg { width: 13px; height: 13px; stroke-width: 2.6; }
+  .done .mark { color: var(--pass); }
+  .failed .mark { color: var(--fail); border-color: var(--fail-rule); background: var(--fail-bg); }
+  .failed > span { color: var(--fail); font-weight: 600; }
+  .notreached { color: var(--faint); }
+  .notreached .mark { color: var(--faint); }
+  .steps .chip { padding: 2px 7px; font-variant-numeric: tabular-nums; }
+  .memory { list-style: none; margin: 0; padding: 0; }
+  .memory li { padding: 6px 10px; font-size: 13px; color: var(--ink); }
+  .memory li + li { border-top: 1px solid var(--rule); }
+  .memory .empty { color: var(--faint); }
+  .close { flex: none; }
+  .nothing { padding: 30px 0; color: var(--soft); }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 20px 16px 60px; }
+    .detail { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .side { height: auto; border-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
+<dialog id="dlg"></dialog>
+
+<script>var LW = [];   // var: results.js read again on the side fills window.LW</script>
+<script src="results.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const secs = s => s == null ? '' : s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + ' min ' + Math.round(s % 60) + ' s';
+  const slug = c => 'sec-' + c.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+  // line icons, drawn on a 24 x 24 grid
+  const PATHS = {
+    summary: '<rect x="4" y="4" width="16" height="16"/><path d="M8 15v-3M12 15V9M16 15v-5"/>',
+    robot: '<rect x="5" y="8" width="14" height="11"/><path d="M12 4v4M9 13h.01M15 13h.01M2 13h3M19 13h3"/>',
+    train: '<rect x="6" y="3" width="12" height="13"/><path d="M6 11h12M9 16l-2 4M15 16l2 4M9 7h6"/>',
+    folder: '<path d="M3 6h7l2 2h9v11H3z"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    steps: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
+    flag: '<path d="M5 21V4h11l-2 4 2 4H5"/>',
+    calendar: '<rect x="4" y="5" width="16" height="16"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+    tests: '<rect x="4" y="4" width="16" height="16"/><path d="m8 12 3 3 5-6"/>',
+    monitor: '<rect x="3" y="4" width="18" height="12"/><path d="M8 20h8M12 16v4"/>',
+    terminal: '<rect x="3" y="4" width="18" height="16"/><path d="m7 9 3 3-3 3M13 15h4"/>',
+    gauge: '<path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 14 4-5"/>',
+    filter: '<path d="M4 5h16l-6 8v6l-4-2v-4z"/>',
+    slow: '<path d="M3 17h18M6 17V9h6l3 4h3v4"/><circle cx="8" cy="19" r="1"/>',
+    check: '<path d="m5 12 5 5 9-10"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    dash: '<path d="M7 12h10"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/>',
+  };
+  const CAT_ICON = { Robots: 'robot', Characters: 'robot', Trains: 'train' };   // a category's icon: add yours (PATHS below)
+  const icon = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${PATHS[n] || PATHS.folder}</svg>`;
+  const chip = (n, text, title = '', cls = '') => `<span class="chip ${cls}"${title ? ` title="${esc(title)}"` : ''}>${icon(n)}${esc(text)}</span>`;
+
+  // the latest result per case (a case run twice in one run keeps its last), failures first, then in run order
+  const byCase = new Map();
+  LW.forEach((t, i) => byCase.set(t.case, { ...t, order: i }));
+  const tests = [...byCase.values()].sort((a, b) => (a.result === 'pass') - (b.result === 'pass') || a.order - b.order);
+  const failed = tests.filter(t => t.result !== 'pass');
+  const cat = t => t.category || 'Robots';
+  const cats = [...new Set([...byCase.values()].sort((a, b) => a.order - b.order).map(cat))];
+  const inCat = c => tests.filter(t => cat(t) === c);
+  let onlyFailed = false;
+
+  const folder = decodeURIComponent(location.pathname.split('/').slice(-2, -1)[0] || '');
+  const runName = folder.replace('_', ' ').replace(/-(\d\d)-(\d\d)$/, ':$1:$2');
+
+  function navHtml() {
+    const link = (id, ic, label, count, bad) => `<a class="navlink" href="#${id}" data-sec="${id}">${icon(ic)}<span>${esc(label)}</span>`
+      + (count == null ? '<span></span>' : `<span class="count">${bad != null ? `<span class="sq ${bad ? 'fail' : ''}" style="width:8px;height:8px"></span>` : ''}${count}</span>`) + '</a>';
+    return `<div class="navtitle">${icon('tests')}Play tests</div>`
+      + link('sec-summary', 'summary', 'Summary')
+      + cats.map(c => link(slug(c), CAT_ICON[c], c, inCat(c).length, inCat(c).some(t => t.result !== 'pass'))).join('')
+      + '<div class="navsep"></div>'
+      + `<button class="btn" id="onlyFailed" aria-pressed="${onlyFailed}">${icon('filter')}${onlyFailed ? 'Showing failed only' : `Failed only (${failed.length})`}</button>`;
+  }
+
+  function summaryHtml() {
+    if (!tests.length) return `<section id="sec-summary"><div class="chips">${chip('calendar', 'Run ' + runName)}</div><div class="tally">No results yet</div></section>`;
+    const total = tests.reduce((n, t) => n + t.seconds, 0), first = tests[0];
+    const tally = failed.length
+      ? `<span class="bad">${failed.length} failed</span>, ${tests.length - failed.length} passed`
+      : `<span class="good">All ${tests.length} passed</span>`;
+    const facts = chip('calendar', 'Run ' + runName, 'When the run started') + chip('tests', `${tests.length} tests`)
+      + chip('clock', `${secs(total)} game time`, 'The robots\' time, all tests together')
+      + chip(first.mode === 'headless' ? 'terminal' : 'monitor', first.mode) + chip('gauge', `speed ${first.speed}x`)
+      + chip('flag', `ended ${LW[LW.length - 1].ended.slice(11)}`, LW[LW.length - 1].ended);
+    const strip = [...byCase.values()].sort((a, b) => a.order - b.order)
+      .map(t => `<a class="${t.result}" href="#${esc(t.case)}" data-case="${esc(t.case)}" title="${esc(t.case)}"></a>`).join('');
+    // one row per category, then the failures (if any), as plain tables
+    const rows = cats.map(c => {
+      const all = inCat(c), bad = all.filter(t => t.result !== 'pass');
+      const slow = [...all].sort((x, y) => y.seconds - x.seconds)[0];
+      return `<tr><td><span class="sq ${bad.length ? 'fail' : ''}"></span></td><td><span class="cat">${icon(CAT_ICON[c])}${esc(c)}</span></td>`
+        + `<td class="n">${all.length}</td><td class="n">${all.length - bad.length}</td><td class="n ${bad.length ? 'bad' : ''}">${bad.length}</td>`
+        + `<td class="n">${secs(all.reduce((n, t) => n + t.seconds, 0))}</td>`
+        + `<td><a href="#${esc(slow.case)}" data-case="${esc(slow.case)}">${esc(slow.case)}</a> <span class="n">(${secs(slow.seconds)})</span></td></tr>`;
+    }).join('');
+    const table = `<table class="sum"><thead><tr><th></th><th>Category</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Game time</th><th>Slowest</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const failTable = failed.length ? `<table class="sum"><thead><tr><th></th><th>Failed test</th><th>Category</th><th>Step</th><th>Why</th></tr></thead><tbody>`
+      + failed.map(t => {
+        const step = t.steps.find(s => s.state === 'failed');
+        return `<tr><td><span class="sq fail"></span></td><td><a href="#${esc(t.case)}" data-case="${esc(t.case)}">${esc(t.case)}</a></td><td>${esc(cat(t))}</td><td>${esc(step ? step.label : '')}</td><td>${esc(t.message)}</td></tr>`;
+      }).join('') + '</tbody></table>' : '';
+    return `<section id="sec-summary"><div class="sechead"><h2>Summary</h2></div><div class="chips">${facts}</div>
+      <div class="tally">${tally}</div><div class="strip">${strip}</div>${table}${failTable}</section>`;
+  }
+
+  function card(t) {
+    const pic = t.video
+      ? `<div class="thumb"><img src="${esc(t.video.replace(/\.mp4$/, '.jpg'))}" alt="" loading="lazy" onerror="this.remove()"></div>`
+      : `<div class="nothumb">no video (headless run without --video)</div>`;
+    return `<button class="test ${t.result}" id="${esc(t.case)}" data-case="${esc(t.case)}">${pic}
+      <div class="body"><div class="name"><span class="sq" title="${t.result === 'pass' ? 'passed' : 'failed'}"></span>${esc(t.case)}</div>
+      <div class="chips">${chip('clock', secs(t.seconds), 'Game time')}${chip('steps', `${t.steps.length} steps`)}</div>
+      ${t.result === 'pass' ? '' : `<div class="why">${icon('alert')}<span>${esc(t.message)}</span></div>`}</div></button>`;
+  }
+
+  function categoryHtml(c) {
+    const all = inCat(c), shown = onlyFailed ? all.filter(t => t.result !== 'pass') : all;
+    const bad = all.filter(t => t.result !== 'pass').length;
+    return `<section id="${slug(c)}"><div class="sechead"><h2>${esc(c)}</h2><div class="chips">${chip('tests', `${all.length} tests`)}`
+      + (bad ? chip('x', `${bad} failed`, '', 'bad') : chip('check', 'all passed', '', 'good')) + '</div></div>'
+      + (shown.length ? `<div class="tests">${shown.map(card).join('')}</div>` : '<div class="nothing">Nothing failed here.</div>') + '</section>';
+  }
+
+  function draw() {
+    $('nav').innerHTML = navHtml();
+    $('main').innerHTML = summaryHtml() + cats.map(categoryHtml).join('');
+    spy();
+  }
+
+  // the nav marks the section on screen
+  let observer;
+  function spy() {
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver(entries => {
+      const seen = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (!seen) return;
+      document.querySelectorAll('.navlink').forEach(a => a.classList.toggle('on', a.dataset.sec === seen.target.id));
+    }, { rootMargin: '0px 0px -70% 0px' });
+    document.querySelectorAll('main section').forEach(s => observer.observe(s));
+  }
+
+  function open(name) {
+    const t = byCase.get(name);
+    if (!t) return;
+    const markOf = { done: 'check', failed: 'x', 'not reached': 'dash' };
+    const steps = t.steps.map(s => `<li class="${s.state.replace(' ', '')}" title="${esc(s.state)}"><span class="mark">${icon(markOf[s.state] || 'dash')}</span><span>${esc(s.label)}</span>${s.seconds == null ? '<span></span>' : chip('clock', secs(s.seconds))}</li>`).join('');
+    const minds = (t.robots || []).map(r => `<div class="box"><div class="head">${icon('robot')}${esc(r.name)} remembers last</div>
+      <ul class="memory">${r.memory.length ? r.memory.map(m => `<li>${esc(m)}</li>`).join('') : '<li class="empty">nothing</li>'}</ul></div>`).join('');
+    $('dlg').innerHTML = `<div class="detail">
+      <div>${t.video ? `<video src="${esc(t.video)}" controls autoplay muted></video>` : '<div class="nothumb">no video (headless run without --video)</div>'}</div>
+      <div class="side ${t.result}"><div class="sidehead"><h2><span class="sq"></span><span>${esc(t.case).replace(/_/g, '_<wbr>')}</span></h2>
+        <button class="btn close" onclick="dlg.close()">${icon('x')}Close</button></div>
+        <div class="chips">${chip(CAT_ICON[cat(t)], cat(t))}${chip('clock', secs(t.seconds), 'Game time')}${chip('flag', 'ended ' + t.ended.slice(11), t.ended)}${chip('steps', `${t.steps.length} steps`)}</div>
+        ${t.result === 'pass' ? '' : `<div class="why">${icon('alert')}<span style="-webkit-line-clamp:unset">${esc(t.message)}</span></div>`}
+        <div class="box"><div class="head">${icon('steps')}Steps</div><ol class="steps">${steps}</ol></div>${minds}</div></div>`;
+    $('dlg').showModal();
+  }
+  $('dlg').addEventListener('close', () => { const v = $('dlg').querySelector('video'); if (v) v.pause(); $('dlg').innerHTML = ''; });   // its video unloaded
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('#onlyFailed')) { onlyFailed = !onlyFailed; draw(); return; }
+    const t = e.target.closest('[data-case]');
+    if (t) { e.preventDefault(); open(t.dataset.case); }
+  });
+  draw();
+  if (location.hash && byCase.has(decodeURIComponent(location.hash.slice(1)))) open(decodeURIComponent(location.hash.slice(1)));   // report.html#<case>
+
+  // while a run may still be going (nothing yet, or a result in the last two minutes): every 5 s read results.js again
+  // on the side, and reload only when it has more results than are shown
+  const last = LW.length ? new Date(LW[LW.length - 1].ended.replace(' ', 'T')) : null;
+  if (!last || Date.now() - last < 120000) {
+    const timer = setInterval(() => {
+      const shown = LW.length;
+      window.LW = [];
+      const s = document.createElement('script');
+      s.src = 'results.js?' + Date.now();
+      s.onload = () => {
+        const now = window.LW.length;
+        s.remove();
+        if (now > shown && !$('dlg').open) location.reload();
+        else if (now && Date.now() - new Date(window.LW[now - 1].ended.replace(' ', 'T')) > 120000) clearInterval(timer);
+      };
+      document.head.appendChild(s);
+    }, 5000);
+  }
+</script>
+</body>
+</html>
