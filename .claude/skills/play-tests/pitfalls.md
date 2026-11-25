@@ -18,6 +18,14 @@ Each of these cost real time on Unreal Engine 5.8. Read them before building, an
   early at 4x in the editor and on time headless. Integrate in fixed small steps (1/120 s) inside Tick.
 - **The editor holds the game's DLLs**: build with the editor closed (`Build.bat`), or use Live Coding for function-body
   changes; header changes need a full build.
+- **"Unable to build while Live Coding is active"**, with this project's editor closed: an editor of the same engine
+  install on *another* project has Live Coding on, and the build tool refuses every build. Pass `-NoHotReloadFromIDE`
+  to `Build.bat` (the run scripts do).
+- **Another build at the same moment** fails this one ("IOException ... The process cannot access the file": the build
+  tool's per-user log, `%LOCALAPPDATA%\UnrealBuildTool\Log.txt`, is shared by every build): pass
+  `-Log=<project>\Saved\Logs\UnrealBuildTool.log`.
+- **A fresh project has no `Saved/Logs`** until the editor has run once: create it before redirecting output into it.
+- **`AFunctionalTest` already has `Steps` and `RunTime` members**: name the test's own something else.
 
 ## Navigation
 
@@ -31,6 +39,17 @@ Each of these cost real time on Unreal Engine 5.8. Read them before building, an
 - **Doors**: a swinging panel shouldn't affect navigation; block the doorway with a box nav modifier (`NavArea_Null`,
   dynamic obstacle) while it's shut, and call `AddDirtyArea` over the doorway when it opens or shuts: moving a component
   doesn't rebuild the nav mesh by itself.
+
+## The world a test plays in
+
+- **The editor adds a `PlayerStartPIE`** to a level that has none when it plays it, so a test world always has a
+  PlayerStart you didn't place. Anything that picks "the first PlayerStart" (a respawn) may pick it: in a trial a car
+  respawned 800 m from the PlayerStart its test placed.
+- **A skeletal mesh's bounds can be nothing like what you see**: the Vehicle template's car bodies are separate
+  components, and its skeletal mesh's box is 2.5 cm. Measure an actor's size or front from every visible primitive
+  component's own box.
+- **Chaos vehicles ignore inputs without a controller** (`bRequiresControllerForInputs`, on by default): give a test car
+  one (`SpawnDefaultController()`) before driving it.
 
 ## Drawing and recording
 
@@ -46,8 +65,10 @@ Each of these cost real time on Unreal Engine 5.8. Read them before building, an
 ## Building the test level
 
 - **Python spawning in a commandlet** (`UnrealEditor-Cmd -run=pythonscript`): `spawn_actor_from_object` returns None,
-  and saving a level there dropped its built nav mesh (the commandlet can't build navigation). Build the test level in
-  the editor.
+  and saving a level there dropped its built nav mesh (the commandlet can't build navigation). Build the test level in a
+  headless *editor* instead: `UnrealEditor-Cmd <project> -ExecutePythonScript=<full path> -unattended -nosplash
+  -RenderOffscreen`, the script ending in `unreal.SystemLibrary.quit_editor()` (in a `finally`, or the editor hangs on
+  an error). The project needs the `PythonScriptPlugin` enabled: it's off by default.
 - **From Git Bash**, arguments starting with `/Game/...` are rewritten to `C:/Program Files/Git/Game/...`: set
   `MSYS_NO_PATHCONV=1`.
 - **Merging a Fab pack's parts into one mesh** (`StaticMeshEditorSubsystem.merge_static_mesh_actors`): the pivot is

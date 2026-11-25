@@ -18,9 +18,11 @@ Read these as you need them (they're beside this file):
 - `test-screen.md`: the five cameras, the panel, recording to video, lighting for the cameras.
 - `writing-tests.md`: what makes a good play test, with worked cases.
 - `pitfalls.md`: Unreal traps that cost hours; read it before building and again when something fails strangely.
-- `templates/`: `report.html` (copied into every run's folder), `run_tests.sh` and `run_tests.ps1` (build, run headless,
-  open the report).
-- `examples/train.md` in the repo this skill came from: a complete worked example (a train on a track, coupling cars).
+- `templates/`: `report.html` (copied into every run's folder), `build_test_level.py` (builds the test level in a
+  headless editor), `run_tests.sh` and `run_tests.ps1` (build, optionally rebuild the level, run headless, open the
+  report).
+- `examples/vehicle.md` (cars: Epic's Vehicle template) and `examples/train.md` (a train on a track, coupling cars):
+  complete worked examples, with what their tests found.
 
 ## Steps
 
@@ -35,20 +37,25 @@ Read these as you need them (they're beside this file):
    cover what the user cares about most; say what you left out. Ask which matter most and whether anything is missing.
 
 3. **Build the framework** if the project doesn't have it yet (`framework.md`, then `test-screen.md`): a test actor
-   class in the game's module, its test screen, the test level with one test actor per case, the report template and the
-   run script. Use the game's own module and naming style. Add `FunctionalTesting` to the module's dependencies.
+   class, its test screen, the test level with one test actor per case, the report template and the run scripts. Use the
+   game's naming style. Put it where a Shipping build won't link it (`FunctionalTesting` is a Developer module: see
+   framework.md, "Where it lives"). Enable the Python Editor Script Plugin (`PythonScriptPlugin`, off by default) for
+   the level builder. The project's own editor needn't be open: everything here runs headless.
 
 4. **Write the cases** (`writing-tests.md`). Drive the game's real code (its components, AI orders, input actions), not
    shortcuts that set the outcome. Check from the world afterwards, measured independently of the code under test.
 
-5. **Build and run them headless** with the run script (the editor must be closed for a build). Read every failure:
+5. **Build and run them headless** with the run script (`--build-level` / `-BuildLevel` the first time and whenever a
+   case is added or renamed; this project's editor must be closed for a build). Read every failure:
    - a real bug in the game: tell the user what the test found, with the video; fix it only if they want you to;
    - a mistake in the test (wrong arena, too tight a number, a step that never finishes): fix the test and say so;
    - an Unreal trap (`pitfalls.md`): fix it and note it.
    Never loosen a check just to make it pass without telling the user why the old number was wrong.
 
 6. **Open the report** (the run's `report.html`) and look at the videos of anything surprising: a passing test can
-   still look wrong (a character sliding, a car hovering beside its rails).
+   still look wrong (a character sliding, a car hovering beside its rails). Read what each passing check measured (it's
+   in the step's label): a number far from anything plausible is a hollow pass. For the tests that matter most, break
+   the feature on purpose once and watch the test go red, then put the code back exactly.
 
 7. **Hand over:** what's covered, what each category found, the one command to rerun everything, how to add a case.
 

@@ -24,6 +24,8 @@ doorway too narrow for the nav mesh, a train car that drifts off its coupling on
   the character walks round its end and the test passes for the wrong reason.
 - **Failure messages say what happened**: "it's 1.42 m along the track, not 0.80 m", "he's 37 degrees off; he
   remembers: walked to D3 (4.1 m)". Include what the actor knows about itself.
+- **Passing checks say what they measured too** ("stopped in 26.2 m"): a pass with a number that makes no sense (a car
+  front 2.2 m off) is a hollow pass, and only the number shows it.
 - **Every test fails when the feature breaks.** When a new test passes first time, check its video, and if in doubt
   break the feature on purpose once and watch the test go red.
 
@@ -50,6 +52,18 @@ track, top speed) and finishes when it's over; then checks of those worst values
 off, then couples it from 60 cm".
 
 **State over time**: "the coach rolls to a stop and stays put": record where it stopped, wait 2 s, check it hasn't moved.
+
+## Vehicles
+
+- Drive through the game's input functions (what its input actions call: throttle, brake, steering), on its real
+  vehicle Blueprints, possessed by a controller (pitfalls.md: Chaos needs one).
+- Measure from the world every frame: speed from position change, heading unwrapped, tilt from the up vector, the front
+  from the visible components' boxes.
+- "Settled" means still for half a second.
+- Long floors with room behind (reversing), a grid material so speed shows on camera.
+- Limits from the game's design, not real cars: an arcade car beats real-car numbers by miles, and a limit it can't
+  miss proves nothing. Break the feature once (no brakes) to see the test go red.
+- `examples/vehicle.md` is ten worked cases.
 
 ## What to cover first
 

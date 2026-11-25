@@ -7,6 +7,15 @@ or headless.
 
 Name things in the game's style; below, `APlayTest` and the `Game` module stand for whatever fits.
 
+## Where it lives
+
+`FunctionalTesting` is a Developer module: a game module that depends on it won't link for Shipping. Give the play tests
+a module of their own, `<Game>PlayTests`, with `"Type": "DeveloperTool"` in the .uproject's `Modules` (built for the
+editor and development builds, never for Shipping), depending on the game's module and on `FunctionalTesting`, `Json`,
+`ImageWrapper`, `Slate` and `SlateCore`. Its classes: the test actor, the test game mode and HUD. (Putting them in the
+game's own module works too, until the game is packaged for Shipping.) Enable the `PythonScriptPlugin` in the .uproject
+for the level builder.
+
 ## The test actor
 
 ```cpp
@@ -25,9 +34,9 @@ protected:
 private:
     static const TArray<TPair<FName, TFunction<void(APlayTest&)>>>& Table();   // the cases
     struct FStep { FString Name; TFunction<bool()> Done; float Timeout = 30.f; bool bCheck = false; };
-    TArray<FStep> Steps;
+    TArray<FStep> Plan;                       // (not "Steps" or "RunTime": AFunctionalTest has members of those names)
     int32 StepIndex = 0;
-    float StepTime = 0.f, RunTime = 0.f;
+    float StepTime = 0.f, GameTime = 0.f;
     struct FRan { FString Label; float Seconds = 0.f; };
     TArray<FRan> Ran;                         // each step done, and how long it took (the screen and the report)
     FString Doing;                            // the current step in words, set when an action starts ("Ann: walk to the door")
@@ -38,7 +47,9 @@ private:
     FVector At(const FVector& Local) const;   // GetActorTransform().TransformPosition(Local)
     AActor* Place(UClass* Class, const FVector& Local, float Yaw, TFunction<void(AActor*)> BeforeSpawn);
     // steps
-    void Check(const FString& What, TFunction<FString()> Problem);   // fails the test with what Problem returns, unless empty
+    // fails the test with the problem Problem returns, unless empty; either way Measured (what it found: "26.2 m") goes
+    // into the step's label, so a pass shows its number too
+    void Check(const FString& What, TFunction<FString(FString& Measured)> Problem);
     // ... the game's own actions as steps (see writing-tests.md), and the screen (test-screen.md)
 };
 ```
@@ -57,7 +68,9 @@ private:
 **Steps**: each frame the current step's `Done()` runs; true moves on (recording its label and time into `Ran`). A step
 over its `Timeout` fails the test, naming the step and what the actors were doing. An action step starts its action the
 first time it runs (keep a `TSharedRef<bool> Given` in the lambda), sets `Doing`, then returns true once the action is
-over and the actor has settled. A check step calls `Finish(Failed, ...)` with its problem and returns true.
+over and the actor has settled. A check step calls `Finish(Failed, ...)` with its problem and returns true; pass or
+fail, its label gets what it measured ("check: stops within 45 m (26.2 m)"). A passing check that says nothing hides a
+hollow pass: in a trial, a car's "front" was measured 2.2 m off and every check still passed until the numbers showed.
 
 **Finishing**: `Finish` doesn't end the test at once: it holds the result on the screen 1.5 s (so the video shows it),
 writes the result to the report, then calls `FinishTest`. Headless with no screen, it ends at once.
@@ -66,7 +79,8 @@ writes the result to the report, then calls `FinishTest`. Headless with no scree
 never rely on nav data saved in the level); start the screen; find the case in the table and run it (no such case: an
 error result).
 
-**Speed**: `GetWorldSettings()->SetTimeDilation(...)` in StartTest (a level's Time Dilation isn't saved: it's transient).
+**Speed**: `GetWorldSettings()->SetTimeDilation(...)` in StartTest (it exists in 5.8 and clamps; a level's Time
+Dilation isn't saved: it's transient).
 In the editor 4x by default from a console variable (`game.TestSpeed`), 1x when recording in the editor (see
 test-screen.md); headless runs use a fixed time step instead (1x). Also set `GetWorldSettings()->MaxUndilatedFrameTime =
 0.05f`: at 4x a hitch otherwise makes one huge step that physics or character movement can't take, and fails a test.
@@ -108,16 +122,21 @@ the report's path (`UE_LOG`) so the runner can open it.
 
 ## The test level
 
-A Python script (run in the editor) builds it: delete everything, add light (test-screen.md: lighting), then for each
-case in `APlayTest::Cases()` a floor (a scaled cube with a plain grey material), a `NavMeshBoundsVolume` over it, and a
-test actor whose label is the case name (that's its name in the automation list) and whose `Case` is set. Floors 30 x 30 m
-on a 40 m grid suit characters; give long things (vehicles, trains) their own longer floors in a separate area. Set the
-level's game mode to the test game mode (test-screen.md). Rerun it whenever a case is added or renamed; it needs the
-editor (pitfalls.md: commandlet saves).
+`templates/build_test_level.py` builds it (copy it to `Scripts/` and set its names): delete everything, add light
+(test-screen.md: lighting), then for each case in `APlayTest::Cases()` a floor (a scaled cube with the engine's grid
+material, so movement shows on camera), a `NavMeshBoundsVolume` over it, and a test actor whose label is the case name
+(that's its name in the automation list) and whose `Case` is set. Floors 30 x 30 m on a 40 m grid suit characters;
+vehicles and trains get long floors (400 x 60 m, 100 m of it behind the start: a reversing car went 78 m back) in a
+column of their own. It sets the level's game mode to the test game mode (test-screen.md).
+
+It runs in a headless editor, not a commandlet (pitfalls.md), and quits it when done:
+`UnrealEditor-Cmd <project> -ExecutePythonScript=<full path> -unattended -nosplash -nosound -NoP4 -RenderOffscreen`
+(about 40 s; the run scripts' `--build-level` / `-BuildLevel`). Rerun it whenever a case is added or renamed.
 
 ## Running
 
-- **Headless** (the default, and what CI would run): `templates/run_tests.sh` / `run_tests.ps1`: builds, runs
+- **Headless** (the default, and what CI would run): `templates/run_tests.sh` / `run_tests.ps1`: builds (with
+  `-NoHotReloadFromIDE` and its own build log: pitfalls.md), runs
   `UnrealEditor-Cmd <project> -RenderOffscreen -unattended -UseFixedTimeStep -FPS=30 -ExecCmds="Automation RunTests
   <Level>" -TestExit="Automation Test Queue Empty"`, prints each result and opens the report. `--fast` uses `-nullrhi`
   instead: nothing drawn, no videos, much quicker. The editor must be closed (it holds the game's DLLs).

@@ -3,7 +3,7 @@
 Seven play tests for a simple train system, as they were built and run (all pass headless in about 40 s; with videos a
 few minutes). Use them as a model: ask Claude for "tests like the train example" for your own vehicles.
 
-![The test screen during train_cars_follow](../docs/images/test-screen-train.jpg)
+![The test screen during train_cars_follow](https://raw.githubusercontent.com/Dreampunch/unreal-play-tests/main/docs/images/test-screen-train.jpg)
 
 ## What's being tested
 

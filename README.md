@@ -29,7 +29,7 @@ why this is a job to hand to an AI: you decide what matters, Claude writes and r
 - **A report**: one HTML page per run, dark, with a side nav. It opens on a summary table per category; every test has
   a card with a still, and opening one plays its video full screen beside its timed steps.
 - **One command to run everything**: `Scripts/run_tests.sh` (or `run_tests.ps1`) builds, runs every test headless and
-  opens the report. `--fast` skips the videos.
+  opens the report. `--fast` skips the videos; `--build-level` rebuilds the test level after you add a case.
 
 ![The report](docs/images/report.png)
 
@@ -49,8 +49,8 @@ You need:
 - **ffmpeg on your PATH**, for the videos;
 - **Git Bash** for `run_tests.sh`, or PowerShell for `run_tests.ps1`.
 
-An Unreal MCP server helps Claude build the test level inside the open editor, but isn't required: Claude can give you
-a Python script to run there.
+Your editor doesn't need to be open: Claude builds the test level and runs the tests in a headless editor. It turns on
+Unreal's Python Editor Script Plugin, which builds the level, and keeps the tests out of Shipping builds.
 
 ## What Claude does
 
@@ -66,10 +66,16 @@ a Python script to run there.
 When you add a feature later, ask Claude for its tests. It adds them and runs everything, and anything that used to pass
 and now fails is a regression.
 
-## Example
+## Examples
 
-[examples/train.md](examples/train.md) covers seven tests of a train on a track: starting, stopping on its mark and on
-time, curves, cars that stay coupled, uncoupling at speed and coupling up again.
+Both ship inside the skill, so Claude can read them in your project:
+
+- [examples/vehicle.md](.claude/skills/play-tests/examples/vehicle.md): ten tests of Epic's C++ Vehicle template,
+  written by a fresh Claude with nothing but this skill, in about 40 minutes from `/play-tests` to a green report. They
+  cover acceleration, braking, turning, a wall hit, flipping back, respawning and a ramp. Along the way it caught its
+  own test mistakes and a hollow pass, and found a respawn quirk in the template.
+- [examples/train.md](.claude/skills/play-tests/examples/train.md): seven tests of a train on a track: starting,
+  stopping on its mark and on time, curves, cars that stay coupled, uncoupling at speed and coupling up again.
 
 ![A train test](docs/images/test-screen-train.jpg)
 
