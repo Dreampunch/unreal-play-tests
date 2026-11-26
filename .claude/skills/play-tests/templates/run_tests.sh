@@ -4,6 +4,8 @@
 #   Scripts/run_tests.sh brakes              the cases whose name contains "brakes"
 #   Scripts/run_tests.sh --fast [filter]     nothing drawn, no videos (much quicker)
 #   Scripts/run_tests.sh --build-level ...   rebuild the test level first (after adding or renaming a case)
+#   Scripts/run_tests.sh --repeat 3 ...      the whole run three times on the same code, each its own run: the last
+#                                            report marks any test that passed and failed on that version as flaky
 # The project's own editor must be closed (it holds the game's DLLs). Needs ffmpeg on the PATH for the videos.
 # A fixed time step: every frame is 1/30 s of game time, run as fast as the machine can, the same steps every run.
 #
@@ -17,9 +19,14 @@ PROJECT="$(cygpath -w "$PWD/$(ls *.uproject | head -1)")"
 EDITOR="$ENGINE/Binaries/Win64/UnrealEditor-Cmd.exe"
 RENDER="-RenderOffscreen -ResX=640 -ResY=360"
 BUILD_LEVEL=""
-while [ "${1:-}" = "--fast" ] || [ "${1:-}" = "--build-level" ]; do
-  [ "$1" = "--fast" ] && RENDER="-nullrhi"
-  [ "$1" = "--build-level" ] && BUILD_LEVEL=1
+REPEAT=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fast) RENDER="-nullrhi" ;;
+    --build-level) BUILD_LEVEL=1 ;;
+    --repeat) REPEAT="$2"; shift ;;
+    *) break ;;
+  esac
   shift
 done
 FILTER="$LEVEL${1:+.$1}"
@@ -41,12 +48,15 @@ if [ -n "$BUILD_LEVEL" ]; then
   grep -E "PlayTests: (built|building)" Saved/Logs/BuildLevel.log | sed -E 's/^\[[^]]*\]\[[^]]*\]//'
 fi
 
-echo "running $FILTER..."
-START=$(date +%s)
-"$EDITOR" "$PROJECT" -unattended $RENDER -nosplash -nosound -NoP4 \
-  -UseFixedTimeStep -FPS=30 -ExecCmds="Automation RunTests $FILTER" -TestExit="Automation Test Queue Empty" -log="$LOG" > /dev/null 2>&1
-grep -E "Test Completed|FinishTest TestResult=Failed" "Saved/Logs/$LOG" | sed -E 's/^\[[^]]*\]\[[^]]*\]//; s/ Path=\{[^}]*\}//'
-echo "passed: $(grep -c 'Result={Success}' "Saved/Logs/$LOG"), failed: $(grep -c 'Result={Fail}' "Saved/Logs/$LOG"), $(( $(date +%s) - START )) s"
+for ((I = 1; I <= REPEAT; I++)); do   # each pass a new editor, so a run folder of its own
+  [ "$REPEAT" -gt 1 ] && echo "--- run $I of $REPEAT"
+  echo "running $FILTER..."
+  START=$(date +%s)
+  "$EDITOR" "$PROJECT" -unattended $RENDER -nosplash -nosound -NoP4 \
+    -UseFixedTimeStep -FPS=30 -ExecCmds="Automation RunTests $FILTER" -TestExit="Automation Test Queue Empty" -log="$LOG" > /dev/null 2>&1
+  grep -E "Test Completed|FinishTest TestResult=Failed" "Saved/Logs/$LOG" | sed -E 's/^\[[^]]*\]\[[^]]*\]//; s/ Path=\{[^}]*\}//'
+  echo "passed: $(grep -c 'Result={Success}' "Saved/Logs/$LOG"), failed: $(grep -c 'Result={Fail}' "Saved/Logs/$LOG"), $(( $(date +%s) - START )) s"
+done
 
 # the test actor logs "PlayTests: test report <path>" when a run starts (framework.md)
 REPORT=$(grep -o "test report .*report.html" "Saved/Logs/$LOG" | tail -1 | sed 's/test report //')

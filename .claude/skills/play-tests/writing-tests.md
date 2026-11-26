@@ -65,8 +65,37 @@ off, then couples it from 60 cm".
   miss proves nothing. Break the feature once (no brakes) to see the test go red.
 - `examples/vehicle.md` is ten worked cases.
 
+## Boundary pairs
+
+Bugs gather at limits. Read the game's code for its numbers (a reach, a hearing range, an angle, a step height, a
+coupling distance) and test each from both sides in one case, just inside and just outside, close enough that a small
+change to the limit fails one side. Two actors side by side, far enough apart not to reach each other's things, do both
+at once. From the Living World robots:
+
+| Case | The limit in the code | Inside | Outside |
+|---|---|---|---|
+| `pick_reach_edge` | a thing's Reach, 150 cm | picks it up at 1.4 m | 1.6 m: "nothing within reach" |
+| `pick_angle_edge` | 45 degrees either side of straight ahead | 40 degrees | 50 degrees |
+| `say_heard_edge` | heard within 15 m | 14.6 m | 15.6 m: not heard |
+| `train_couple_edge` | `CoupleReach`, 30 cm off the coupled place | 25 cm: couples | 35 cm: refused |
+
+A boundary pair checks itself: if the limit moves, one side goes red, so it can't pass hollow the way a one-sided case
+can. Name the limit and where it lives in a comment on the case, so whoever changes it finds the test.
+
+## Every bug gets a case
+
+When a bug is found (by a test, in play, by the user), write the case that shows it before fixing it, watch it fail, fix
+the game, watch it pass. Tag it with where and when the bug showed (framework.md: `Tag`'s third argument). That's how
+the suite grows from real failures rather than guesses, and the report's regression count keeps watch over it after.
+
 ## What to cover first
 
-For each system the user cares about: the main thing working (walks there, opens, arrives), the thing refusing when it
-should (locked, out of reach, too far), the awkward geometry (doorways, stairs, curves, glass), timing (on time, never
-over its speed), and anything that has broken before.
+For each system the user cares about, all three kinds (framework.md):
+
+- **positive**: the main thing working (walks there, opens, arrives on time);
+- **negative**: the thing refusing when it should (locked, out of reach, nothing there, glass in the way, never past
+  its end);
+- **boundary**: each limit the code has, from both sides (above).
+
+Then the awkward geometry (doorways, stairs, curves, glass), timing (on time, never over its speed), and anything that
+has broken before. A system with no negative or no boundary case is a gap: say so in the plan, with why.

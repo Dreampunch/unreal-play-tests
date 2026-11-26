@@ -33,8 +33,15 @@ Read these as you need them (they're beside this file):
 
 2. **Propose a test plan and agree it with the user before writing code.** Group cases into categories (one per system:
    Characters, Doors, Vehicles...). For each case: one line on the arena, what is done, and what is checked, with
-   numbers ("stops within 10 cm of its end", "arrives within 5% of the time its speeds give"). Start with 5-15 cases that
-   cover what the user cares about most; say what you left out. Ask which matter most and whether anything is missing.
+   numbers ("stops within 10 cm of its end", "arrives within 5% of the time its speeds give"), and its kind:
+   - **positive** (it does what it should), **negative** (it refuses or stops when it should) or **boundary** (just
+     inside and just outside a limit);
+   - every feature gets all three. List the limits you found in the code (reach 150 cm, heard within 15 m, a step of
+     35 cm) with a boundary pair for each (`writing-tests.md`, "Boundary pairs"), and say why for any kind a feature
+     has none of.
+
+   Start with 5-15 cases that cover what the user cares about most; say what you left out. Ask which matter most and
+   whether anything is missing.
 
 3. **Build the framework** if the project doesn't have it yet (`framework.md`, then `test-screen.md`): a test actor
    class, its test screen, the test level with one test actor per case, the report template and the run scripts. Use the
@@ -54,12 +61,16 @@ Read these as you need them (they're beside this file):
 
 6. **Open the report** (the run's `report.html`) and look at the videos of anything surprising: a passing test can
    still look wrong (a character sliding, a car hovering beside its rails). Read what each passing check measured (it's
-   in the step's label): a number far from anything plausible is a hollow pass. For the tests that matter most, break
+   in the step's label): a number far from anything plausible is a hollow pass. Read the summary's table of features by
+   kind: a feature flagged with a missing kind is a gap to fill or explain. Before calling a failure a regression, rerun
+   with `--repeat 3`: a case that passes and fails on the same version is flaky (the report marks it), and a flaky case
+   is a problem of its own (timing, physics, nav mesh) to fix in the test or the game. For the tests that matter most, break
    the feature on purpose once and watch the test go red, then put the code back exactly.
 
 7. **Hand over:** what's covered, what each category found, the one command to rerun everything, how to add a case.
 
 ## When a feature is added later
 
-Add its cases to the table (`framework.md`), place their test actors in the test level, run everything, and tell the
-user if anything that used to pass now fails: that's a regression, the reason these tests exist.
+Add its cases to the table (`framework.md`), positive, negative and boundary, place their test actors in the test level,
+run everything, and tell the user if anything that used to pass now fails: the report counts them as regressions, the
+reason these tests exist. When a bug turns up, its case comes first (`writing-tests.md`, "Every bug gets a case").

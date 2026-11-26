@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- A play-test run's report (unreal-play-tests). Each run's folder (Saved/TestRecordings/<run>/) gets a copy of this page
-     when its first test starts; every test that ends adds a line to results.js beside it (LW.push({...}); see framework.md),
-     and when recorded its video <case>.mp4 and a still <case>.jpg. Open it while the run goes (it picks up new results)
-     or after. Dark only; every fact in its own box with an icon; buttons raised with a gradient. -->
+     when its first test starts, and previous.js beside it (every case's results in earlier runs: see framework.md);
+     every test that ends adds a line to results.js beside it (LW.push({...})), and when recorded its video <case>.mp4
+     and a still <case>.jpg. Open it while the run goes (it picks up new results) or after. Dark only; every fact in its
+     own box with an icon; buttons raised with a gradient. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -29,10 +30,13 @@
   .navlink:hover { background: var(--chip); border-color: var(--rule); }
   .navlink.on { background: var(--chip); border-color: #4a5059; }
   .navlink.on svg { color: var(--ink); }
+  .navlink.sub { margin-left: 18px; padding: 5px 10px; font-size: 13px; color: var(--soft); }
+  .navlink.sub.on { color: var(--ink); }
+  .navlink.sub.positive svg { color: #8fb4e3; } .navlink.sub.negative svg { color: #b99be6; } .navlink.sub.boundary svg { color: #e2b867; }
   .count { display: inline-flex; align-items: center; gap: 6px; padding: 1px 7px; background: var(--bg); border: 1px solid var(--rule); font-size: 12px; font-variant-numeric: tabular-nums; }
   .navsep { height: 1px; background: var(--rule); margin: 10px 4px; }
   main { padding: 28px 32px 80px; max-width: 1400px; width: 100%; }
-  section { scroll-margin-top: 16px; }
+  section, .kindhead { scroll-margin-top: 16px; }
   section + section { margin-top: 36px; }
 
   /* a fact: an icon and a value in a box of its own */
@@ -42,6 +46,9 @@
   .chip.good svg { color: var(--pass); }
   .chip.bad { border-color: var(--fail-rule); background: var(--fail-bg); }
   .chip.bad svg { color: var(--fail); }
+  .chip.warn { border-color: #5c4a1c; background: #2a2212; }
+  .chip.warn svg { color: #ffb81c; }
+  table.sum td.warn { color: #ffb81c; }
 
   /* buttons: raised, with a gradient */
   .btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; cursor: pointer; font: 600 13px system-ui, "Segoe UI", sans-serif;
@@ -56,6 +63,24 @@
 
   .sechead { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
   .sechead h2 { margin: 0; font-size: 22px; font-weight: 700; }
+  /* a kind's heading: a band of its own colour across the section (blue, violet, amber: never green or red, which mean
+     passed and failed) */
+  /* the history: a square per run (green, red, or grey when the test didn't run), a line of its game time */
+  table.hist td.c { width: 20px; padding: 9px 2px; text-align: center; }
+  table.hist th.c { padding: 6px 2px; text-align: center; font-size: 10px; line-height: 1.2; font-weight: 500; writing-mode: vertical-rl; transform: rotate(180deg); height: 92px; }
+  table.hist th.c.now { color: var(--ink); font-weight: 700; }
+  .sq.none { background: var(--rule); }
+  .sq.flaky { outline: 2px solid #ffb81c; outline-offset: 1px; }
+  svg.spark { width: 120px; height: 22px; display: block; stroke: var(--soft); fill: none; stroke-width: 1.5; }
+  .kindhead { display: flex; align-items: center; gap: 10px; margin: 28px 0 12px; padding: 10px 14px;
+    background: #1f2a38; border: 1px solid #33465e; color: #8fb4e3; }
+  .kindhead.negative { background: #2b2238; border-color: #4a3863; color: #b99be6; }
+  .kindhead.boundary { background: #33291a; border-color: #5a4626; color: #e2b867; }
+  .kindhead.untagged { background: var(--chip); border-color: var(--rule); color: var(--soft); }
+  .sechead + .kindhead { margin-top: 4px; }
+  .kindhead svg.i { width: 17px; height: 17px; }
+  .kindhead h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); }
+  .kindhead .count { background: rgba(0,0,0,0.25); border-color: currentColor; color: var(--ink); }
 
   /* the summary */
   .tally { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 6px 0 14px; }
@@ -148,10 +173,12 @@
 
 <script>var LW = [];   // var: results.js read again on the side fills window.LW</script>
 <script src="results.js"></script>
+<script>var LWPrev = {};   // every case's results before this run, oldest first (previous.js, written as the run starts)</script>
+<script src="previous.js"></script>
 <script>
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  const secs = s => s == null ? '' : s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + ' min ' + Math.round(s % 60) + ' s';
+  const secs = s => s == null ? '' : s < 60 ? s.toFixed(1) + ' s' : (r => Math.floor(r / 60) + ' min ' + r % 60 + ' s')(Math.round(s));
   const slug = c => 'sec-' + c.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   // line icons, drawn on a 24 x 24 grid
@@ -174,6 +201,15 @@
     x: '<path d="M6 6l12 12M18 6 6 18"/>',
     dash: '<path d="M7 12h10"/>',
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/>',
+    positive: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    negative: '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
+    boundary: '<path d="M3 8h18v8H3z"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/>',
+    bug: '<rect x="8" y="7" width="8" height="12" rx="4"/><path d="M12 7V4M8 11H4M16 11h4M8 16H5M16 16h3M9 4l1 2M15 4l-1 2"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+    version: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 8v8M18 10c0 4-6 3-10 7"/>',
+    flaky: '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+    slower: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+    plusbox: '<rect x="4" y="4" width="16" height="16"/><path d="M12 8v8M8 12h8"/>',
   };
   const CAT_ICON = { Robots: 'robot', Characters: 'robot', Trains: 'train' };   // a category's icon: add yours (PATHS below)
   const icon = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${PATHS[n] || PATHS.folder}</svg>`;
@@ -189,6 +225,40 @@
   const inCat = c => tests.filter(t => cat(t) === c);
   let onlyFailed = false;
 
+  // against the runs before (previous.js: each case's earlier results, oldest first). A regression used to pass and now
+  // fails; fixed is the other way; new has no result before. Flaky: it passed and failed on this same version of the game
+  // (commit and uncommitted changes), so the result isn't the code's: not a regression, whatever the last run said
+  const history = t => { const h = LWPrev[t.case]; return Array.isArray(h) ? h : h ? [h] : []; };
+  const before = t => history(t).at(-1);
+  const flakyVersions = t => { const by = {};
+    [...history(t), t].filter(r => r.version).forEach(r => (by[r.version] = by[r.version] || new Set()).add(r.result === 'pass'));
+    return Object.keys(by).filter(v => by[v].size > 1); };
+  const flakyNow = t => !!t.version && flakyVersions(t).includes(t.version);
+  const sameVersion = t => [...history(t), t].filter(r => r.version && r.version === t.version);
+  const change = t => { if (flakyNow(t)) return 'flaky';
+    const p = before(t); if (!p) return 'new'; const was = p.result === 'pass', now = t.result === 'pass';
+    return was && !now ? 'regression' : !was && now ? 'fixed' : now ? 'passing' : 'failing'; };
+  // its game time against its last five passes: a walk that takes far longer than it did is wandering, even when it passes
+  const timeShift = t => { const ref = history(t).filter(r => r.result === 'pass' && r.seconds != null).slice(-5).map(r => r.seconds).sort((a, b) => a - b);
+    if (t.result !== 'pass' || ref.length < 2) return null; const med = ref[ref.length >> 1];
+    return Math.abs(t.seconds - med) > 1 && Math.abs(t.seconds / med - 1) > 0.25 ? { med, ratio: t.seconds / med } : null; };
+  const hasPrev = Object.keys(LWPrev).length > 0;
+  const regressions = tests.filter(t => change(t) === 'regression'), fixed = tests.filter(t => change(t) === 'fixed'),
+    fresh = hasPrev ? tests.filter(t => change(t) === 'new') : [], flaky = tests.filter(flakyNow), shifted = tests.filter(timeShift);
+  const ver = r => r && (r.version || r.commit) ? (r.version || r.commit) : 'an unknown version';
+  const KINDS = ['positive', 'negative', 'boundary'];
+  const KIND_TIP = { positive: 'Positive: it does what it should', negative: 'Negative: it refuses or stops when it should', boundary: 'Boundary: just inside and just outside a limit' };
+  const kindOf = t => t.kind || (t.kinds || [])[0] || '';   // one kind a test: what its name says it proves (older runs: kinds)
+  const kindChips = t => (kindOf(t) ? chip(kindOf(t), kindOf(t), KIND_TIP[kindOf(t)]) : '') + (t.bug ? chip('bug', 'from a bug', t.bug) : '');
+  const changeChip = t => { const c = change(t), p = before(t), sh = timeShift(t);
+    const time = sh ? chip('slower', `${sh.ratio > 1 ? 'slower' : 'faster'}: ${secs(t.seconds)}, was ${secs(sh.med)}`, 'Game time against its last five passes', 'warn') : '';
+    if (c === 'flaky') { const n = sameVersion(t), ok = n.filter(r => r.result === 'pass').length;
+      return chip('flaky', `flaky: passed ${ok} of ${n.length}`, `on version ${t.version}: the same code passed and failed`, 'warn') + time; }
+    if (c === 'regression') return chip('history', 'regression: passed before', `passed in run ${p.run} at ${ver(p)}, fails at ${ver(t)}`, 'bad') + time;
+    if (c === 'fixed') return chip('history', 'fixed since last run', `failed in run ${p.run} at ${ver(p)}: ${p.message}`, 'good') + time;
+    if (c === 'new' && hasPrev) return chip('plusbox', 'new test') + time;
+    return time; };
+
   const folder = decodeURIComponent(location.pathname.split('/').slice(-2, -1)[0] || '');
   const runName = folder.replace('_', ' ').replace(/-(\d\d)-(\d\d)$/, ':$1:$2');
 
@@ -197,7 +267,11 @@
       + (count == null ? '<span></span>' : `<span class="count">${bad != null ? `<span class="sq ${bad ? 'fail' : ''}" style="width:8px;height:8px"></span>` : ''}${count}</span>`) + '</a>';
     return `<div class="navtitle">${icon('tests')}Play tests</div>`
       + link('sec-summary', 'summary', 'Summary')
-      + cats.map(c => link(slug(c), CAT_ICON[c], c, inCat(c).length, inCat(c).some(t => t.result !== 'pass'))).join('')
+      + cats.map(c => link(slug(c), CAT_ICON[c], c, inCat(c).length, inCat(c).some(t => t.result !== 'pass'))
+        + [...KINDS, ''].map(k => { const g = inCat(c).filter(t => kindOf(t) === k); if (!g.length) return '';
+            return link(`${slug(c)}-${k || 'untagged'}`, k || 'alert', k ? k[0].toUpperCase() + k.slice(1) : 'Untagged', g.length, g.some(t => t.result !== 'pass'))
+              .replace('class="navlink"', `class="navlink sub ${k}" data-parent="${slug(c)}"`); }).join('')).join('')
+      + (hasPrev ? link('sec-history', 'history', 'History', flaky.length || null, flaky.length ? true : null) : '')
       + '<div class="navsep"></div>'
       + `<button class="btn" id="onlyFailed" aria-pressed="${onlyFailed}">${icon('filter')}${onlyFailed ? 'Showing failed only' : `Failed only (${failed.length})`}</button>`;
   }
@@ -211,7 +285,10 @@
     const facts = chip('calendar', 'Run ' + runName, 'When the run started') + chip('tests', `${tests.length} tests`)
       + chip('clock', `${secs(total)} game time`, 'The robots\' time, all tests together')
       + chip(first.mode === 'headless' ? 'terminal' : 'monitor', first.mode) + chip('gauge', `speed ${first.speed}x`)
-      + chip('flag', `ended ${LW[LW.length - 1].ended.slice(11)}`, LW[LW.length - 1].ended);
+      + chip('flag', `ended ${LW[LW.length - 1].ended.slice(11)}`, LW[LW.length - 1].ended)
+      + (first.commit ? chip('version', `${first.branch ? first.branch + ' ' : ''}${first.commit}`, `The game's version: commit ${first.commit}${first.uncommitted ? ` with uncommitted changes (version ${first.version})` : ''}`)
+        + (first.uncommitted ? chip('alert', `${first.uncommitted} uncommitted file${first.uncommitted === 1 ? '' : 's'}`, 'Changes not in the commit: a result here may not hold for the commit alone', 'warn') : '')
+        : chip('version', 'version unknown', 'No git commit was recorded'));
     const strip = [...byCase.values()].sort((a, b) => a.order - b.order)
       .map(t => `<a class="${t.result}" href="#${esc(t.case)}" data-case="${esc(t.case)}" title="${esc(t.case)}"></a>`).join('');
     // one row per category, then the failures (if any), as plain tables
@@ -223,14 +300,32 @@
         + `<td class="n">${secs(all.reduce((n, t) => n + t.seconds, 0))}</td>`
         + `<td><a href="#${esc(slow.case)}" data-case="${esc(slow.case)}">${esc(slow.case)}</a> <span class="n">(${secs(slow.seconds)})</span></td></tr>`;
     }).join('');
+    const changes = hasPrev ? `<div class="chips" style="margin-bottom:6px">`
+      + chip('history', `${regressions.length} regression${regressions.length === 1 ? '' : 's'}`, 'Passed in an earlier run, fails now', regressions.length ? 'bad' : 'good')
+      + (fixed.length ? chip('history', `${fixed.length} fixed`, 'Failed in an earlier run, passes now', 'good') : '')
+      + (fresh.length ? chip('plusbox', `${fresh.length} new`, 'No result in an earlier run') : '')
+      + (flaky.length ? chip('flaky', `${flaky.length} flaky`, 'Passed and failed on this same version: ' + flaky.map(t => t.case).join(', '), 'warn') : '')
+      + (shifted.length ? chip('slower', `${shifted.length} with a changed game time`, shifted.map(t => t.case).join(', '), 'warn') : '') + '</div>'
+      : `<div class="chips" style="margin-bottom:6px">${chip('history', 'first run: nothing to compare with')}</div>`;
+    // what kinds of test each feature has: one with only positive tests never checks it refuses, or where its limits are
+    const feats = [...new Set(tests.map(t => t.feature || 'Untagged'))];
+    const covRows = feats.map(f => {
+      const all = tests.filter(t => (t.feature || 'Untagged') === f);
+      const n = k => all.filter(t => kindOf(t) === k).length, bugs = all.filter(t => t.bug).length;
+      const gaps = KINDS.filter(k => !n(k)).map(k => 'no ' + k);
+      return `<tr><td><span class="sq ${all.some(t => t.result !== 'pass') ? 'fail' : ''}"></span></td><td>${esc(f)}</td><td class="n">${all.length}</td>`
+        + KINDS.map(k => `<td class="n ${n(k) ? '' : 'warn'}">${n(k)}</td>`).join('') + `<td class="n">${bugs}</td>`
+        + `<td>${gaps.length ? chip('alert', gaps.join(', '), 'Kinds of test this feature has none of', 'warn') : chip('check', 'all three', '', 'good')}</td></tr>`;
+    }).join('');
+    const coverage = `<table class="sum"><thead><tr><th></th><th>Feature</th><th>Tests</th><th>Positive</th><th>Negative</th><th>Boundary</th><th>From bugs</th><th>Gaps</th></tr></thead><tbody>${covRows}</tbody></table>`;
     const table = `<table class="sum"><thead><tr><th></th><th>Category</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Game time</th><th>Slowest</th></tr></thead><tbody>${rows}</tbody></table>`;
-    const failTable = failed.length ? `<table class="sum"><thead><tr><th></th><th>Failed test</th><th>Category</th><th>Step</th><th>Why</th></tr></thead><tbody>`
+    const failTable = failed.length ? `<table class="sum"><thead><tr><th></th><th>Failed test</th><th>Before</th><th>Step</th><th>Why</th></tr></thead><tbody>`
       + failed.map(t => {
         const step = t.steps.find(s => s.state === 'failed');
-        return `<tr><td><span class="sq fail"></span></td><td><a href="#${esc(t.case)}" data-case="${esc(t.case)}">${esc(t.case)}</a></td><td>${esc(cat(t))}</td><td>${esc(step ? step.label : '')}</td><td>${esc(t.message)}</td></tr>`;
+        return `<tr><td><span class="sq fail"></span></td><td><a href="#${esc(t.case)}" data-case="${esc(t.case)}">${esc(t.case)}</a></td><td>${change(t) === 'regression' ? `<span class="cat" style="color:var(--fail)" title="${esc(before(t).run)}">${icon('history')}passed at ${esc(ver(before(t)))}</span>` : change(t) === 'flaky' ? 'flaky: passed too' : change(t) === 'new' ? 'new' : before(t) ? 'failed too' : ''}</td><td>${esc(step ? step.label : '')}</td><td>${esc(t.message)}</td></tr>`;
       }).join('') + '</tbody></table>' : '';
     return `<section id="sec-summary"><div class="sechead"><h2>Summary</h2></div><div class="chips">${facts}</div>
-      <div class="tally">${tally}</div><div class="strip">${strip}</div>${table}${failTable}</section>`;
+      <div class="tally">${tally}</div>${changes}<div class="strip">${strip}</div>${table}${failTable}${coverage}</section>`;
   }
 
   function card(t) {
@@ -239,8 +334,16 @@
       : `<div class="nothumb">no video (headless run without --video)</div>`;
     return `<button class="test ${t.result}" id="${esc(t.case)}" data-case="${esc(t.case)}">${pic}
       <div class="body"><div class="name"><span class="sq" title="${t.result === 'pass' ? 'passed' : 'failed'}"></span>${esc(t.case)}</div>
-      <div class="chips">${chip('clock', secs(t.seconds), 'Game time')}${chip('steps', `${t.steps.length} steps`)}</div>
+      <div class="chips">${changeChip(t)}${kindChips(t)}${chip('clock', secs(t.seconds), 'Game time')}${chip('steps', `${t.steps.length} steps`)}</div>
       ${t.result === 'pass' ? '' : `<div class="why">${icon('alert')}<span>${esc(t.message)}</span></div>`}</div></button>`;
+  }
+
+  // a section's tests in a group per kind: positive, negative, boundary (then any untagged), each headed with its count
+  const KIND_HEAD = { positive: 'Positive: does what it should', negative: 'Negative: refuses or stops when it should', boundary: 'Boundary: either side of a limit', '': 'Untagged' };
+  function groups(list, c) {
+    return [...KINDS, ''].map(k => { const g = list.filter(t => kindOf(t) === k); if (!g.length) return '';
+      return `<div class="kindhead ${k || 'untagged'}" id="${slug(c)}-${k || 'untagged'}">${icon(k || 'alert')}<h3>${esc(KIND_HEAD[k])}</h3><span class="count">${g.length}</span></div><div class="tests">${g.map(card).join('')}</div>`;
+    }).join('');
   }
 
   function categoryHtml(c) {
@@ -248,12 +351,35 @@
     const bad = all.filter(t => t.result !== 'pass').length;
     return `<section id="${slug(c)}"><div class="sechead"><h2>${esc(c)}</h2><div class="chips">${chip('tests', `${all.length} tests`)}`
       + (bad ? chip('x', `${bad} failed`, '', 'bad') : chip('check', 'all passed', '', 'good')) + '</div></div>'
-      + (shown.length ? `<div class="tests">${shown.map(card).join('')}</div>` : '<div class="nothing">Nothing failed here.</div>') + '</section>';
+      + (shown.length ? groups(shown, c) : '<div class="nothing">Nothing failed here.</div>') + '</section>';
+  }
+
+  // every case's last runs side by side: a square per run, outlined where its version was flaky, and a line of its game time
+  function historyHtml() {
+    if (!hasPrev) return '';
+    const runs = [...new Set([...tests.flatMap(t => history(t).map(r => r.run)), folder])].sort().slice(-14);
+    const head = runs.map(r => { const v = r === folder ? tests[0].version : (tests.flatMap(history).find(x => x.run === r) || {}).version;
+      return `<th class="c ${r === folder ? 'now' : ''}" title="${esc(r)}${v ? ' at ' + esc(v) : ''}">${esc(r.slice(5, 16).replace('_', ' '))}</th>`; }).join('');
+    const spark = vals => { const v = vals.filter(x => x != null); if (v.length < 2) return '';
+      const lo = 0, hi = Math.max(...v), span = hi || 1;   // from zero, so a small change looks small
+      const pts = vals.map((x, i) => x == null ? null : `${(i / (vals.length - 1) * 116 + 2).toFixed(1)},${(20 - (x - lo) / span * 18).toFixed(1)}`).filter(Boolean).join(' ');
+      return `<svg class="spark" viewBox="0 0 120 22" aria-hidden="true"><polyline points="${pts}"/></svg>`; };
+    const rows = [...byCase.values()].sort((a, b) => a.order - b.order).map(t => {
+      const all = [...history(t), { ...t, run: folder }], fv = flakyVersions(t);
+      const cells = runs.map(r => { const x = all.filter(y => y.run === r).at(-1);
+        if (!x) return '<td class="c"><span class="sq none" title="not run"></span></td>';
+        return `<td class="c"><span class="sq ${x.result === 'pass' ? '' : 'fail'} ${fv.includes(x.version) ? 'flaky' : ''}" title="${esc(r)}: ${x.result}, ${secs(x.seconds)}${x.version ? ' at ' + esc(x.version) : ''}${x.result === 'pass' ? '' : ' — ' + esc(x.message)}"></span></td>`; }).join('');
+      const times = runs.map(r => { const x = all.filter(y => y.run === r).at(-1); return x && x.result === 'pass' ? x.seconds : null; });
+      return `<tr><td><a href="#${esc(t.case)}" data-case="${esc(t.case)}">${esc(t.case)}</a></td>${cells}<td>${spark(times)}</td><td>${changeChip(t)}</td></tr>`;
+    }).join('');
+    return `<section id="sec-history"><div class="sechead"><h2>History</h2><div class="chips">${chip('history', `the last ${runs.length} runs`)}`
+      + (flaky.length ? chip('flaky', `${flaky.length} flaky`, '', 'warn') : chip('check', 'nothing flaky', 'No test both passed and failed on one version', 'good')) + `</div></div>`
+      + `<table class="sum hist"><thead><tr><th>Test</th>${head}<th>Game time (passes)</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`;
   }
 
   function draw() {
     $('nav').innerHTML = navHtml();
-    $('main').innerHTML = summaryHtml() + cats.map(categoryHtml).join('');
+    $('main').innerHTML = summaryHtml() + cats.map(categoryHtml).join('') + historyHtml();
     spy();
   }
 
@@ -264,9 +390,10 @@
     observer = new IntersectionObserver(entries => {
       const seen = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
       if (!seen) return;
-      document.querySelectorAll('.navlink').forEach(a => a.classList.toggle('on', a.dataset.sec === seen.target.id));
+      const sub = document.querySelector(`.navlink.sub[data-sec="${seen.target.id}"]`);
+      document.querySelectorAll('.navlink').forEach(a => a.classList.toggle('on', a.dataset.sec === seen.target.id || (sub && a.dataset.sec === sub.dataset.parent)));
     }, { rootMargin: '0px 0px -70% 0px' });
-    document.querySelectorAll('main section').forEach(s => observer.observe(s));
+    document.querySelectorAll('main section, main .kindhead').forEach(s => observer.observe(s));
   }
 
   function open(name) {
@@ -280,8 +407,9 @@
       <div>${t.video ? `<video src="${esc(t.video)}" controls autoplay muted></video>` : '<div class="nothumb">no video (headless run without --video)</div>'}</div>
       <div class="side ${t.result}"><div class="sidehead"><h2><span class="sq"></span><span>${esc(t.case).replace(/_/g, '_<wbr>')}</span></h2>
         <button class="btn close" onclick="dlg.close()">${icon('x')}Close</button></div>
-        <div class="chips">${chip(CAT_ICON[cat(t)], cat(t))}${chip('clock', secs(t.seconds), 'Game time')}${chip('flag', 'ended ' + t.ended.slice(11), t.ended)}${chip('steps', `${t.steps.length} steps`)}</div>
+        <div class="chips">${changeChip(t)}${t.feature ? chip('folder', t.feature) : ''}${kindChips(t)}${chip(CAT_ICON[cat(t)], cat(t))}${chip('clock', secs(t.seconds), 'Game time')}${chip('flag', 'ended ' + t.ended.slice(11), t.ended)}${t.version ? chip('version', t.version, 'The game version this ran on') : ''}${chip('steps', `${t.steps.length} steps`)}</div>
         ${t.result === 'pass' ? '' : `<div class="why">${icon('alert')}<span style="-webkit-line-clamp:unset">${esc(t.message)}</span></div>`}
+        ${t.bug ? `<div class="box"><div class="head">${icon('bug')}Written for a bug</div><div class="body" style="font-size:13px">${esc(t.bug)}</div></div>` : ''}
         <div class="box"><div class="head">${icon('steps')}Steps</div><ol class="steps">${steps}</ol></div>${minds}</div></div>`;
     $('dlg').showModal();
   }

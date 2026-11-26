@@ -51,6 +51,11 @@ private:
     // into the step's label, so a pass shows its number too
     void Check(const FString& What, TFunction<FString(FString& Measured)> Problem);
     // ... the game's own actions as steps (see writing-tests.md), and the screen (test-screen.md)
+    // what the case proves, for the report: its feature, its one kind, and the bug it was written for, if any
+    enum EKind : uint8 { None, Positive, Negative, Boundary };
+    void Tag(const TCHAR* InFeature, EKind InKind, const TCHAR* InBug = TEXT("")) { Feature = InFeature; TestKind = InKind; Bug = InBug; }
+    FString Feature, Bug;
+    EKind TestKind = None;                    // (not "Kind": a game's own classes often have a Kind, and a clash won't compile)
 };
 ```
 
@@ -58,12 +63,25 @@ private:
 
 ```cpp
 { "door_stays_locked", [](T& t) {
+    t.Tag(TEXT("Doors"), Negative);                        // what it proves (below)
     ACharacter* Hero = t.Hero(FVector::ZeroVector);
     ADoor* Door = t.Spawn<ADoor>(FVector(400, 0, 0)); Door->bLocked = true;
     t.Use(Hero, Door);                                     // an action step: starts it, waits until it's over
     t.Check("it stays shut", [Door] { return Door->IsOpen() ? FString(TEXT("it opened")) : FString(); });
 } },
 ```
+
+**Every case says what it proves**, on its first line: `t.Tag(feature, kind[, bug])`, reset to untagged in StartTest.
+One kind per case, the one its name promises:
+
+- **Positive**: it does what it should (walks there, opens, arrives on time).
+- **Negative**: it refuses or stops when it should (locked, out of reach, nothing there, never past its end).
+- **Boundary**: either side of a limit in the game's code, just inside and just outside (writing-tests.md).
+
+A case that checks both sides is still one kind: the other side is a guard. "Only one robot gets the cabinet" is
+negative, though the first one opening it is checked too. `bug` says where and when the bug the case was written for
+showed ("L_Room: he walked to the door's edge and missed it (25 Nov)"). The report groups each category's cases by kind
+and shows a table of features by kind, flagging any feature missing one: that table is how gaps get noticed.
 
 **Steps**: each frame the current step's `Done()` runs; true moves on (recording its label and time into `Ran`). A step
 over its `Timeout` fails the test, naming the step and what the actors were doing. An action step starts its action the
@@ -102,8 +120,9 @@ ago. When the first test of a run starts, copy `templates/report.html` (keep it 
 `Scripts/report.html`) into the folder. When each test finishes, append one line to the folder's `results.js`:
 
 ```js
-LW.push({"case":"door_stays_locked","category":"Doors","result":"pass","message":"3 steps","seconds":4.2,
+LW.push({"case":"door_stays_locked","category":"Doors","result":"pass","message":"3 steps","feature":"Doors","kind":"negative","seconds":4.2,
   "mode":"headless","speed":1,"ended":"2026-11-25 13:47:42","video":"door_stays_locked.mp4",
+  "commit":"40710dd","branch":"main","version":"40710dd+4bd30533","uncommitted":6,
   "steps":[{"label":"Hero: use the door","state":"done","seconds":2.1},{"label":"check: it stays shut","state":"done","seconds":0.03}],
   "robots":[{"name":"Hero","memory":["..."]}]});
 ```
@@ -113,12 +132,37 @@ LW.push({"case":"door_stays_locked","category":"Doors","result":"pass","message"
 - `video` only when the test was recorded (the page shows a still, `<case>.jpg`, made with the video).
 - `robots` is optional: anything the actors can tell about themselves (an AI's last memories, a vehicle's state). The
   page shows each as a box of lines; rename the field in both places if "robots" doesn't fit the game.
+- `feature`, `kind` (`positive`, `negative`, `boundary`, or empty when untagged) and `bug` (only when set): from `Tag`.
+- `commit`, `branch`, `version` and `uncommitted`: the game's version the run tested (below), the same on every line of
+  a run.
 - `category`: from the case name's prefix (`train_` gives "Trains"), or a column in the table. The report gets a
   section and a summary row per category.
 
 Write it with `FJsonObject` and `FJsonSerializer` (condensed), as `LW.push(<json>);\n`, appended
 (`FILEWRITE_Append`). The page loads `results.js` with a `<script>` tag, which works from `file://`, so no server is needed. Log
 the report's path (`UE_LOG`) so the runner can open it.
+
+**The version tested**: when a run's folder is made, ask git (`FPlatformProcess::ExecProcess("git", "-C <project> ...")`)
+for the commit (`rev-parse --short HEAD`), the branch (`rev-parse --abbrev-ref HEAD`) and the project's uncommitted files
+(`status --porcelain --untracked-files=all -- .`; its paths are from the repo's top, `rev-parse --show-toplevel`). The
+version is the commit, plus, when files are uncommitted, a code for them: a crc (`FCrc::StrCrc32`) of each changed file's
+path, size and time stamp. Two runs of the same code then share a version, and any changed file makes a new one. Without
+git, leave them empty: the report says "version unknown".
+
+**Earlier results**: also write `previous.js` beside the report: `var LWPrev = {"<case>": [{"result":"pass","message":
+"...","seconds":4.2,"ended":"...","commit":"...","version":"...","run":"<folder>"}, ...], ...};`, each case's results in
+every earlier run folder, oldest first, the last 30 (folders sorted by name are oldest first; read each `results.js`
+line, strip `LW.push(` and `);`, parse it). A filtered run reruns only some cases, so a case's last result may be in any
+folder. From it the page shows:
+
+- **regressions** (passed in its last earlier result, fails now), fixed and new cases, each card marked, the failure
+  table saying which version it last passed at: the bug is in the diff between the two;
+- **flaky** cases: passed and failed on one version, so the result isn't the code's. Not counted as a regression.
+  `run_tests --repeat 3` runs everything three times on the same code to find them; do it before trusting a regression;
+- **a changed game time**: a pass that took 25% (and over a second) more or less than its last five passes (a walk that
+  wanders still passes);
+- **a History section**: a row per case, a square per run for the last 14 (outlined where that version was flaky), and
+  a line of its game time across them.
 
 ## The test level
 

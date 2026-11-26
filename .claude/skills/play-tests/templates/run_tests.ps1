@@ -3,11 +3,14 @@
 #   .\Scripts\run_tests.ps1 -Filter brakes   the cases whose name contains "brakes"
 #   .\Scripts\run_tests.ps1 -Fast            nothing drawn, no videos (much quicker)
 #   .\Scripts\run_tests.ps1 -BuildLevel      rebuild the test level first (after adding or renaming a case)
+#   .\Scripts\run_tests.ps1 -Repeat 3        the whole run three times on the same code, each its own run: the last
+#                                            report marks any test that passed and failed on that version as flaky
 # The project's own editor must be closed (it holds the game's DLLs). Needs ffmpeg on the PATH for the videos.
 param(
     [string]$Filter = "",
     [switch]$Fast,
     [switch]$BuildLevel,
+    [int]$Repeat = 1,
     [string]$Engine = "C:\Program Files\Epic Games\UE_5.8\Engine",   # the engine's Engine folder
     [string]$Target = "MyGameEditor",                                 # the editor target: <Module>Editor
     [string]$Level = "L_PlayTests"                                    # the test level's name
@@ -35,17 +38,20 @@ if ($BuildLevel) {
     Select-String "PlayTests: (built|building)" Saved\Logs\BuildLevel.log | ForEach-Object { $_.Line -replace '^\[[^]]*\]\[[^]]*\]', '' }
 }
 
-Write-Host "running $Tests..."
-$Start = Get-Date
-$UeArgs = @("`"$Project`"", "-unattended") + $Render.Split(" ") + @("-nosplash", "-nosound", "-NoP4", "-UseFixedTimeStep", "-FPS=30",
-    "-ExecCmds=`"Automation RunTests $Tests`"", "-TestExit=`"Automation Test Queue Empty`"", "-log=$Log")
-Start-Process -FilePath $Editor -ArgumentList $UeArgs -Wait -NoNewWindow -RedirectStandardOutput Saved\Logs\PlayTestsOut.txt
+for ($I = 1; $I -le $Repeat; $I++) {   # each pass a new editor, so a run folder of its own
+    if ($Repeat -gt 1) { Write-Host "--- run $I of $Repeat" }
+    Write-Host "running $Tests..."
+    $Start = Get-Date
+    $UeArgs = @("`"$Project`"", "-unattended") + $Render.Split(" ") + @("-nosplash", "-nosound", "-NoP4", "-UseFixedTimeStep", "-FPS=30",
+        "-ExecCmds=`"Automation RunTests $Tests`"", "-TestExit=`"Automation Test Queue Empty`"", "-log=$Log")
+    Start-Process -FilePath $Editor -ArgumentList $UeArgs -Wait -NoNewWindow -RedirectStandardOutput Saved\Logs\PlayTestsOut.txt
 
-$Lines = Get-Content "Saved\Logs\$Log"
-$Lines | Select-String "Test Completed|FinishTest TestResult=Failed" | ForEach-Object { ($_ -replace '^\[[^]]*\]\[[^]]*\]', '') -replace ' Path=\{[^}]*\}', '' }
-$Passed = ($Lines | Select-String 'Result=\{Success\}').Count
-$Failed = ($Lines | Select-String 'Result=\{Fail\}').Count
-Write-Host "passed: $Passed, failed: $Failed, $([int]((Get-Date) - $Start).TotalSeconds) s"
+    $Lines = Get-Content "Saved\Logs\$Log"
+    $Lines | Select-String "Test Completed|FinishTest TestResult=Failed" | ForEach-Object { ($_ -replace '^\[[^]]*\]\[[^]]*\]', '') -replace ' Path=\{[^}]*\}', '' }
+    $Passed = ($Lines | Select-String 'Result=\{Success\}').Count
+    $Failed = ($Lines | Select-String 'Result=\{Fail\}').Count
+    Write-Host "passed: $Passed, failed: $Failed, $([int]((Get-Date) - $Start).TotalSeconds) s"
+}
 
 $Report = ($Lines | Select-String "test report (.*report\.html)" | Select-Object -Last 1).Matches.Groups[1].Value
 if ($Report) { Write-Host "report: $Report"; if (-not $env:NO_OPEN) { Start-Process $Report } }
