@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds the project, runs its play tests headless, prints each result and opens the run's report.
 #   Scripts/run_tests.sh                     every case, each recorded to video (rendered offscreen)
-#   Scripts/run_tests.sh brakes              the cases whose name contains "brakes"
+#   Scripts/run_tests.sh driving_brakes      the cases whose name starts with "driving_brakes"
+#   Scripts/run_tests.sh driving_brakes,collisions   several, comma-separated, in one run
 #   Scripts/run_tests.sh --fast [filter]     nothing drawn, no videos (much quicker)
 #   Scripts/run_tests.sh --build-level ...   rebuild the test level first (after adding or renaming a case)
 #   Scripts/run_tests.sh --repeat 3 ...      the whole run three times on the same code, each its own run: the last
@@ -29,7 +30,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-FILTER="$LEVEL${1:+.$1}"
+# Automation matches "<LEVEL>.<filter>" as the start of a test's name; "+" joins several into one run
+FILTER="$LEVEL"
+[ -n "${1:-}" ] && FILTER=$(echo "$1" | tr ',' '\n' | sed -E "s/^ +| +$//g; s/^/$LEVEL./" | paste -sd+ -)
 LOG="PlayTests.log"   # under Saved/Logs
 mkdir -p Saved/Logs   # (a fresh project has no Saved/Logs yet)
 
@@ -55,9 +58,14 @@ for ((I = 1; I <= REPEAT; I++)); do   # each pass a new editor, so a run folder 
   "$EDITOR" "$PROJECT" -unattended $RENDER -nosplash -nosound -NoP4 \
     -UseFixedTimeStep -FPS=30 -ExecCmds="Automation RunTests $FILTER" -TestExit="Automation Test Queue Empty" -log="$LOG" > /dev/null 2>&1
   grep -E "Test Completed|FinishTest TestResult=Failed" "Saved/Logs/$LOG" | sed -E 's/^\[[^]]*\]\[[^]]*\]//; s/ Path=\{[^}]*\}//'
-  echo "passed: $(grep -c 'Result={Success}' "Saved/Logs/$LOG"), failed: $(grep -c 'Result={Fail}' "Saved/Logs/$LOG"), $(( $(date +%s) - START )) s"
+  PASSED=$(grep -c 'Result={Success}' "Saved/Logs/$LOG"); FAILED=$(grep -c 'Result={Fail}' "Saved/Logs/$LOG")
+  echo "passed: $PASSED, failed: $FAILED, $(( $(date +%s) - START )) s"
+  [ "$PASSED" -eq 0 ] && [ "$FAILED" -eq 0 ] && echo "nothing ran: no test matched \"$FILTER\", or the level or editor failed (see Saved/Logs/$LOG)"
 done
 
 # the test actor logs "PlayTests: test report <path>" when a run starts (framework.md)
 REPORT=$(grep -o "test report .*report.html" "Saved/Logs/$LOG" | tail -1 | sed 's/test report //')
 if [ -n "$REPORT" ]; then echo "report: $REPORT"; [ -z "${NO_OPEN:-}" ] && cmd //c start "" "$REPORT"; fi
+# exit 1 when anything failed or nothing ran (the last pass), so a hook or CI can stop on it
+[ "$FAILED" -gt 0 ] || [ "$PASSED" -eq 0 ] && exit 1
+exit 0

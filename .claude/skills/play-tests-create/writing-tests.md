@@ -27,7 +27,12 @@ doorway too narrow for the nav mesh, a train car that drifts off its coupling on
 - **Passing checks say what they measured too** ("stopped in 26.2 m"): a pass with a number that makes no sense (a car
   front 2.2 m off) is a hollow pass, and only the number shows it.
 - **Every test fails when the feature breaks.** When a new test passes first time, check its video, and if in doubt
-  break the feature on purpose once and watch the test go red.
+  break the feature on purpose once and watch the test go red. Then put the code back and make sure the next build
+  recompiles it (pitfalls.md: a restored file can keep its old time stamp).
+- **A negative case where "nothing happens" needs proof it could.** "Holds against full throttle" with the car not
+  moving passes just the same if the throttle never reached it. Run a control beside it (the same car without the
+  handbrake, which must move), or break the feature once to see it go red, and print what was applied (the engine's
+  rpm).
 
 ## Shapes of cases
 
@@ -53,6 +58,10 @@ off, then couples it from 60 cm".
 
 **State over time**: "the coach rolls to a stop and stays put": record where it stopped, wait 2 s, check it hasn't moved.
 
+**Against a control**: the same thing done twice side by side, once with the feature and once without ("stops with
+the handbrake, while the coasting car beside it is still doing 42 km/h"). Measure every actor a case compares from the
+world every frame, not only the test's subject: a small tracker per actor (speed, heading, worst slip) does it.
+
 ## Vehicles
 
 - Drive through the game's input functions (what its input actions call: throttle, brake, steering), on its real
@@ -70,7 +79,7 @@ off, then couples it from 60 cm".
 Bugs gather at limits. Read the game's code for its numbers (a reach, a hearing range, an angle, a step height, a
 coupling distance) and test each from both sides in one case, just inside and just outside, close enough that a small
 change to the limit fails one side. Two actors side by side, far enough apart not to reach each other's things, do both
-at once. From the Living World robots:
+at once. From a game of robots:
 
 | Case | The limit in the code | Inside | Outside |
 |---|---|---|---|
@@ -81,6 +90,15 @@ at once. From the Living World robots:
 
 A boundary pair checks itself: if the limit moves, one side goes red, so it can't pass hollow the way a one-sided case
 can. Name the limit and where it lives in a comment on the case, so whoever changes it finds the test.
+
+**Limits with no two sides.** Not every limit can be stood either side of:
+- **an on/off input** (a handbrake, a toggle): no threshold to straddle. Test on and off instead.
+- **a margin no input can cross** (6000 Nm of handbrake against at most 4000 Nm the engine can put through a wheel):
+  a negative case at the strongest input there is ("holds against full throttle").
+- **a limit that comes out of the physics** (the steepest slope a parked car holds on, set by tyre grip, not by any
+  number in the code): ask the developer for the design number ("parks on a 20% hill") and test that as a pair.
+
+Say which it is when you propose the feature's cases, so "no boundary case" is a reason, not a gap.
 
 ## Every bug gets a case
 

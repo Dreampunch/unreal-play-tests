@@ -115,19 +115,23 @@ the time.
 
 ## Results and the report
 
-A run is a folder `Saved/TestRecordings/<yyyy-mm-dd_hh-mm-ss>/`; a new one starts when the last test ended over a minute
-ago. When the first test of a run starts, copy `templates/report.html` (keep it in the project, e.g.
+A run is a folder `Saved/TestRecordings/<yyyy-mm-dd_hh-mm-ss>/`. A new one starts with the first test of each editor
+process (keep the folder in a static), so every launch of the runner, and each pass of `--repeat`, is a run of its own;
+in an open editor, where the process lives on, also when the last test ended over a minute ago. When the first test of a run starts, copy `templates/report.html` (keep it in the project, e.g.
 `Scripts/report.html`) into the folder. When each test finishes, append one line to the folder's `results.js`:
 
 ```js
 LW.push({"case":"door_stays_locked","category":"Doors","result":"pass","message":"3 steps","feature":"Doors","kind":"negative","seconds":4.2,
-  "mode":"headless","speed":1,"ended":"2026-11-25 13:47:42","video":"door_stays_locked.mp4",
+  "mode":"recorded","speed":1,"ended":"2026-11-25 13:47:42","video":"door_stays_locked.mp4",
   "commit":"40710dd","branch":"main","version":"40710dd+4bd30533","uncommitted":6,
   "steps":[{"label":"Hero: use the door","state":"done","seconds":2.1},{"label":"check: it stays shut","state":"done","seconds":0.03}],
   "robots":[{"name":"Hero","memory":["..."]}]});
 ```
 
-- `result` is `pass` or `fail`; `message` the failure (or "N steps"); `seconds` the game time.
+- `result` is `pass` or `fail`; `message` the failure (or "N steps"); `seconds` the game time up to the result, not
+  counting any hold after it for the video (so a recorded run and a fast one give the same number).
+- `mode`: `fast` (headless, nothing drawn: `-nullrhi`), `recorded` (headless, drawn offscreen and recorded) or `editor`
+  (played in an open editor). Game times are only compared within one mode.
 - `steps[].state` is `done`, `failed` or `not reached`; `seconds` for the done and failed ones.
 - `video` only when the test was recorded (the page shows a still, `<case>.jpg`, made with the video).
 - `robots` is optional: anything the actors can tell about themselves (an AI's last memories, a vehicle's state). The
@@ -150,7 +154,7 @@ path, size and time stamp. Two runs of the same code then share a version, and a
 git, leave them empty: the report says "version unknown".
 
 **Earlier results**: also write `previous.js` beside the report: `var LWPrev = {"<case>": [{"result":"pass","message":
-"...","seconds":4.2,"ended":"...","commit":"...","version":"...","run":"<folder>"}, ...], ...};`, each case's results in
+"...","seconds":4.2,"mode":"fast","ended":"...","commit":"...","version":"...","run":"<folder>"}, ...], ...};`, each case's results in
 every earlier run folder, oldest first, the last 30 (folders sorted by name are oldest first; read each `results.js`
 line, strip `LW.push(` and `);`, parse it). A filtered run reruns only some cases, so a case's last result may be in any
 folder. From it the page shows:
@@ -159,8 +163,8 @@ folder. From it the page shows:
   table saying which version it last passed at: the bug is in the diff between the two;
 - **flaky** cases: passed and failed on one version, so the result isn't the code's. Not counted as a regression.
   `run_tests --repeat 3` runs everything three times on the same code to find them; do it before trusting a regression;
-- **a changed game time**: a pass that took 25% (and over a second) more or less than its last five passes (a walk that
-  wanders still passes);
+- **a changed game time**: a pass that took 25% (and over a second) more or less than its last five passes in the same
+  mode (a walk that wanders still passes);
 - **a History section**: a row per case, a square per run for the last 14 (outlined where that version was flaky), and
   a line of its game time across them.
 

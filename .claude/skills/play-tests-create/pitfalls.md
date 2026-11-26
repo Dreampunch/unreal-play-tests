@@ -26,6 +26,10 @@ Each of these cost real time on Unreal Engine 5.8. Read them before building, an
   `-Log=<project>\Saved\Logs\UnrealBuildTool.log`.
 - **A fresh project has no `Saved/Logs`** until the editor has run once: create it before redirecting output into it.
 - **`AFunctionalTest` already has `Steps` and `RunTime` members**: name the test's own something else.
+- **A restored file can leave the broken build in place.** After breaking a feature on purpose, putting the file back
+  from a copy that keeps its old time stamp (`cp -p`, `Copy-Item`, an old `git checkout`) makes it older than the object
+  built from the broken version, and the build can skip it: every later run tests the broken game. Touch the file after
+  restoring it (`touch`, or `(Get-Item f).LastWriteTime = Get-Date`).
 
 ## Navigation
 

@@ -1,6 +1,7 @@
 # Builds the project, runs its play tests headless, prints each result and opens the run's report.
 #   .\Scripts\run_tests.ps1                  every case, each recorded to video (rendered offscreen)
-#   .\Scripts\run_tests.ps1 -Filter brakes   the cases whose name contains "brakes"
+#   .\Scripts\run_tests.ps1 -Filter driving_brakes            the cases whose name starts with "driving_brakes"
+#   .\Scripts\run_tests.ps1 -Filter driving_brakes,collisions several, comma-separated, in one run
 #   .\Scripts\run_tests.ps1 -Fast            nothing drawn, no videos (much quicker)
 #   .\Scripts\run_tests.ps1 -BuildLevel      rebuild the test level first (after adding or renaming a case)
 #   .\Scripts\run_tests.ps1 -Repeat 3        the whole run three times on the same code, each its own run: the last
@@ -21,7 +22,8 @@ New-Item -ItemType Directory -Force Saved\Logs | Out-Null   # (a fresh project h
 $Project = (Get-ChildItem *.uproject | Select-Object -First 1).FullName
 $Editor = "$Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $Render = if ($Fast) { "-nullrhi" } else { "-RenderOffscreen -ResX=640 -ResY=360" }
-$Tests = if ($Filter) { "$Level.$Filter" } else { $Level }
+# Automation matches "<Level>.<filter>" as the start of a test's name; "+" joins several into one run
+$Tests = if ($Filter) { ($Filter -split "," | ForEach-Object { "$Level.$($_.Trim())" }) -join "+" } else { $Level }
 $Log = "PlayTests.log"
 
 Write-Host "building..."
@@ -51,7 +53,12 @@ for ($I = 1; $I -le $Repeat; $I++) {   # each pass a new editor, so a run folder
     $Passed = ($Lines | Select-String 'Result=\{Success\}').Count
     $Failed = ($Lines | Select-String 'Result=\{Fail\}').Count
     Write-Host "passed: $Passed, failed: $Failed, $([int]((Get-Date) - $Start).TotalSeconds) s"
+    if ($Passed + $Failed -eq 0) { Write-Host "nothing ran: no test matched `"$Tests`", or the level or editor failed (see Saved\Logs\$Log)" }
 }
 
-$Report = ($Lines | Select-String "test report (.*report\.html)" | Select-Object -Last 1).Matches.Groups[1].Value
+$Match = $Lines | Select-String "test report (.*report\.html)" | Select-Object -Last 1   # none when nothing ran
+$Report = if ($Match) { $Match.Matches[0].Groups[1].Value } else { "" }
 if ($Report) { Write-Host "report: $Report"; if (-not $env:NO_OPEN) { Start-Process $Report } }
+# exit 1 when anything failed or nothing ran (the last pass), so a hook or CI can stop on it
+if ($Failed -gt 0 -or $Passed -eq 0) { exit 1 }
+exit 0

@@ -1,7 +1,7 @@
 # Worked example: cars (Epic's Vehicle template)
 
 Ten play tests a fresh Claude wrote with this skill for Epic's C++ Vehicle template (`TP_VehicleAdv`, UE 5.8), on its
-own Blueprint cars, in about 40 minutes from `/play-tests` to a green report. All pass headless, recorded.
+own Blueprint cars, in about 40 minutes from `/play-tests` (now `/play-tests-create`) to a green report. All pass headless, recorded.
 
 ## How the cars are driven and measured
 

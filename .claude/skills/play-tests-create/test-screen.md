@@ -42,6 +42,11 @@ does); a solid block with RUNNING (amber) / PASS (green) / FAIL (red); beside it
 of 5", "3.4 s"); then the steps, one per line: number, label (the current one bright and marked with a bar), seconds on
 the right. At the end the panel turns dark green or dark red; a failure shows the failed step and its message, wrapped.
 
+**Live values** (worth it whenever checks measure motion): under the steps, a line or two of what the case is measuring,
+updated every frame: a vehicle's speed, gear and distance travelled, a character's distance to its target. The cameras
+follow the actor, so in a video of a car that never stops, frames 15 s apart look the same; the live speed shows it at a
+glance. Let each case set them (`Live(TEXT("speed"), Kmh)`), and draw nothing when a case sets none.
+
 **Text**: Roboto, the engine's font asset, at its real size: `FSlateFontInfo(LoadObject<UFont>(nullptr,
 TEXT("/Engine/EngineFonts/Roboto.Roboto")), Size, TEXT("Bold"))`, drawn with `FCanvasTextItem`. Measure text with
 `FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Text, Font)`. Not `FCoreStyle`'s default font

@@ -239,7 +239,7 @@
     const p = before(t); if (!p) return 'new'; const was = p.result === 'pass', now = t.result === 'pass';
     return was && !now ? 'regression' : !was && now ? 'fixed' : now ? 'passing' : 'failing'; };
   // its game time against its last five passes: a walk that takes far longer than it did is wandering, even when it passes
-  const timeShift = t => { const ref = history(t).filter(r => r.result === 'pass' && r.seconds != null).slice(-5).map(r => r.seconds).sort((a, b) => a - b);
+  const timeShift = t => { const ref = history(t).filter(r => r.result === 'pass' && r.seconds != null && (r.mode || '') === (t.mode || '')).slice(-5).map(r => r.seconds).sort((a, b) => a - b);
     if (t.result !== 'pass' || ref.length < 2) return null; const med = ref[ref.length >> 1];
     return Math.abs(t.seconds - med) > 1 && Math.abs(t.seconds / med - 1) > 0.25 ? { med, ratio: t.seconds / med } : null; };
   const hasPrev = Object.keys(LWPrev).length > 0;
@@ -251,7 +251,7 @@
   const kindOf = t => t.kind || (t.kinds || [])[0] || '';   // one kind a test: what its name says it proves (older runs: kinds)
   const kindChips = t => (kindOf(t) ? chip(kindOf(t), kindOf(t), KIND_TIP[kindOf(t)]) : '') + (t.bug ? chip('bug', 'from a bug', t.bug) : '');
   const changeChip = t => { const c = change(t), p = before(t), sh = timeShift(t);
-    const time = sh ? chip('slower', `${sh.ratio > 1 ? 'slower' : 'faster'}: ${secs(t.seconds)}, was ${secs(sh.med)}`, 'Game time against its last five passes', 'warn') : '';
+    const time = sh ? chip('slower', `${sh.ratio > 1 ? 'slower' : 'faster'}: ${secs(t.seconds)}, was ${secs(sh.med)}`, 'Game time against its last five passes in the same mode', 'warn') : '';
     if (c === 'flaky') { const n = sameVersion(t), ok = n.filter(r => r.result === 'pass').length;
       return chip('flaky', `flaky: passed ${ok} of ${n.length}`, `on version ${t.version}: the same code passed and failed`, 'warn') + time; }
     if (c === 'regression') return chip('history', 'regression: passed before', `passed in run ${p.run} at ${ver(p)}, fails at ${ver(t)}`, 'bad') + time;
